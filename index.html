@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>早安电台生成器</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --accent: #e8b86d;
+    --text: #eaeaea;
+    --sub: #a0a0b0;
+    --border: #2a2a4a;
+    --danger: #ff6b6b;
+    --green: #51cf66;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+  .container { max-width:900px; width:100%; }
+  header {
+    text-align: center;
+    padding: 30px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  header h1 { font-size: 2.2em; color: var(--accent); letter-spacing: 2px; }
+  header p { color: var(--sub); margin-top: 6px; font-size: 0.95em; }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    background: var(--card);
+    padding: 18px 22px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+  }
+  .controls label { font-weight: 600; color: var(--sub); font-size: 0.9em; white-space: nowrap; }
+  .controls input[type="date"] {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1em;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .controls input[type="date"]:focus { border-color: var(--accent); }
+  .btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #1a1a2e; }
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+  .btn-outline:hover { background: var(--accent); color: #1a1a2e; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .status {
+    text-align: center;
+    padding: 40px;
+    color: var(--sub);
+  }
+  .status .spinner {
+    display: inline-block;
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .script-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    line-height: 1.9;
+    font-size: 1.05em;
+    white-space: pre-wrap;
+    position: relative;
+  }
+  .script-card .time-badge {
+    position: absolute;
+    top: -14px;
+    left: 28px;
+    background: var(--accent);
+    color: #1a1a2e;
+    padding: 4px 16px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 700;
+  }
+  .script-card .section-title {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.1em;
+    margin: 18px 0 8px;
+  }
+  .script-card .hot-item {
+    display: inline-block;
+    background: rgba(232,184,109,0.1);
+    border: 1px solid rgba(232,184,109,0.25);
+    padding: 2px 10px;
+    border-radius: 12px;
+    margin: 2px 4px;
+    font-size: 0.9em;
+  }
+
+  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .error-msg { color: var(--danger); text-align: center; padding: 20px; background: rgba(255,107,107,0.08); border-radius: 10px; }
+
+  .history-section { margin-top: 32px; }
+  .history-section h2 { color: var(--accent); font-size: 1.3em; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .history-list { display: flex; flex-direction: column; gap: 10px; }
+  .history-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color .2s;
+    cursor: pointer;
+  }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item .h-thumb { width: 120px; height: 68px; border-radius: 8px; background: var(--bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 2em; }
+  .history-item .h-info { flex: 1; min-width: 0; }
+  .history-item .h-time { color: var(--sub); font-size: 0.82em; }
+  .history-item .h-text { color: var(--text); font-size: 0.9em; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-item .h-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .history-item .h-actions button {
+    padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text); font-family: inherit; font-size: 0.85em; cursor: pointer; transition: all .2s;
+  }
+  .history-item .h-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .history-empty { color: var(--sub); text-align: center; padding: 30px; font-size: 0.95em; }
+
+  .video-wrapper { position: relative; }
+  .video-close {
+    position: absolute;
+    top: 10px; right: 10px;
+    z-index: 10;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .video-close:hover { background: rgba(255,75,75,0.85); }
+
+  .progress-bar-wrap {
+    width: 100%; height: 8px; background: var(--border); border-radius: 4px;
+    margin: 12px 0; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), #f0c27a);
+    border-radius: 4px; transition: width .3s;
+    width: 0%;
+  }
+  .progress-pct { font-size: 1.1em; font-weight: 700; color: var(--accent); }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.5em; }
+    .script-card { padding: 20px 18px; font-size: 0.9em; }
+    .controls { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1> 早安电台</h1>
+    <p>输入日期，一键生成当天的早安电台文案 + 热点事件</p>
+  </header>
+
+  <div class="controls">
+    <label for="datePicker"> 日期：</label>
+    <input type="date" id="datePicker">
+    <button class="btn btn-primary" id="btnGenerate"> 生成早安电台</button>
+    <button class="btn btn-outline" id="btnSpeak" disabled> 朗读</button>
+    <button class="btn btn-outline" id="btnCopy" disabled> 复制文案</button>
+    <button class="btn btn-primary" id="btnGenVideo" disabled> 生成视频</button>
+  </div>
+
+  <div id="output"></div>
+  <div id="videoStatus"></div>
+  <div id="videoPlayer" style="display:none; margin-top:20px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; text-align:center;">
+    <div class="video-wrapper">
+      <button class="video-close" id="btnVideoClose" title="关闭">✕</button>
+      <video id="previewVideo" controls style="width:100%; max-width:100%; border-radius:8px;"></video>
+    </div>
+  </div>
+  <div class="actions" id="actions"></div>
+
+  <div class="history-section">
+    <h2> 生成历史</h2>
+    <div class="history-list" id="historyList">
+      <div class="history-empty">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 天气 API (Open-Meteo, 免费免 Key) ──────────────────────────
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=Asia/Shanghai&forecast_days=1`;
+  const r = await fetch(url);
+  const d = await r.json();
+  const day = d.daily;
+  const codes = {0:'☀️ 晴',1:' 少云',2:'⛅ 多云',3:'☁️ 阴',45:' 雾',51:' 小雨',61:' 中雨',71:' 小雪',80:' 阵雨',95:'⛈️ 雷暴'};
+  const wc = day.weathercode[0];
+  return {
+    high: day.temperature_2m_max[0],
+    low: day.temperature_2m_min[0],
+    weather: codes[wc] || wc + '',
+    icon: codes[wc] ? codes[wc].split(' ')[0] : ''
+  };
+}
+
+// ── 热点 API ────────────────────────────────────────────────────
+async function fetchWeiboHot() {
+  try {
+    const r = await fetch('https://tenapi.cn/v2/weibohot');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.code === 200 && d.data) return d.data.slice(0, 15).map(i => i.name);
+    throw new Error('Bad response');
+  } catch(e) {
+    console.warn('Weibo API failed:', e.message);
+    return [];
+  }
+}
+
+async function fetchZhihuHot() {
+  try {
+    const r = await fetch('https://tenapi.cn/v2/zhihuhot');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.code === 200 && d.data) return d.data.slice(0, 10).map(i => i.name || i.title);
+    throw new Error('Bad response');
+  } catch(e) {
+    console.warn('Zhihu API failed:', e.message);
+    return [];
+  }
+}
+
+// ── 模拟数据 (API 不可用时) ────────────────────────────────────
+function fallbackHot(dateStr) {
+  const pools = [
+    ['科技巨头发布新一代AI芯片', '国际气候峰会达成新协议', '世界杯预选赛亚洲区战报', '央行发布最新经济数据', '新能源汽车销量创新高'],
+    ['国产大飞机完成商业首航', '5月电影票房突破50亿', '多地推行数字人民币试点', '高校毕业生就业率公布', '新型储能技术取得突破'],
+    ['国际空间站迎来新任务', '量子计算研究新进展', '全球粮食安全报告发布', '文化遗产数字化保护计划', '自动驾驶政策新规出台'],
+    ['春晚节目单正式公布', '春节档电影预售破亿', '年度十大科技进展揭晓', '全国铁路春运方案发布', '全民健身运动热潮持续'],
+    ['AI大会展示最新应用', '海峡两岸文化交流活动', '气候变化应对新举措', '教育改革新政落地', '太空探索任务更新'],
+  ];
+  const d = new Date(dateStr);
+  const i = (d.getDate() + d.getMonth() * 7) % pools.length;
+  return pools[i];
+}
+
+// ── 生成电台文案（抖音早安电台爆款模板） ──────────────────────
+function getWeekdayCN(date) {
+  return ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][date.getDay()];
+}
+
+function formatDateCN(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+// 五大类爆款文案模板池 — 每条约100字
+const SCRIPT_POOLS = {
+  healing: [
+    '生活真的不用太赶，慢慢来就好。你心里想要的那些东西，时光都会一点一点地给到你。不管今天会遇到什么困难和挑战，请记得先给自己一个温暖的微笑。新的一天，愿你不慌不忙，心有暖阳，被这个世界温柔以待。',
+    '平凡普通的日子，也值得我们用心去对待。因为生命里的每一分每一秒，都是独一无二的限量版，一旦过去了就再也回不来了。你今天认真生活的样子，就是交给时光最好的答案。愿你今天温暖而美好，平安而喜乐。',
+    '你要相信，风总会来，花总会开，雨总会停，黑暗过后一定是黎明。你只管安安静静地变好，剩下的一切，上天自有最好的安排。不必焦虑未来，不必懊悔过去，请永远保持你骨子里的温柔和善良，好运已经在路上了。',
+    '把自己的心情照顾好，比什么都重要。心顺了，身边的人和事，慢慢也就跟着顺了，整个世界都会变得温柔起来。别再为鸡毛蒜皮的小事烦恼，今天也要好好爱自己多一点。你值得被珍惜，值得被认真对待。早安。',
+    '我们不必活得多光芒万丈，但一定要始终温暖有光。认真生活，好好吃饭，踏实做事，这就是最好的人生状态。不需要让所有人都满意，你只需要对自己诚实、对生活真诚。愿你今天笑容灿烂，眼里有光，脚下有路。',
+    '成年人的世界从来不容易，但你每一次咬牙坚持的早起，每一次擦干眼泪后的重新振作，都在让你变得比以前更加强大。每一个努力早起的你都值得被温柔以待。愿你今天遇到的都是善意，走过的都是坦途。',
+  ],
+  growth: [
+    '你不需要很厉害才能开始，但你一定要先勇敢地开始，才会慢慢变得很厉害。行动永远比空想有用一百倍，迈出第一步就是最大的胜利。今天做一点，明天再做一点，总有一天你会感谢现在拼命努力的自己。加油吧。',
+    '慢慢来真的没关系，谁不是一边受伤一边学会坚强，一边流泪一边继续成长。你走的每一步都算数，你经历的每一段挫折都会成为未来的底气。别着急，别慌张，你想要的都在路上，时间会给你最好的答案和最甜的惊喜。',
+    '把情绪调成静音模式，不炫耀、不抱怨、不诉苦，安安静静地努力，然后在不知不觉中惊艳所有曾经看轻你的人。你今天默默付出的汗水，未来都会变成热烈的掌声加倍还给你。请一定相信自己，你可以，你真的可以。',
+    '人生没有白走的路，每一步经历都算数，一步也不会少。好的给你温暖，坏的给你教训，它们都是在成全你独一无二的人生风景。回头看看，你已经咬着牙走了很远的路。相信自己，你比想象中更强大，比昨天更接近梦想。',
+    '少想那些没用的事，少纠结那些改变不了的人和事。让自己忙起来、充实起来，专注做好眼前的事，你会发现自己越过越好。今天，就从完成一件小事开始吧，哪怕只是整理好久没收拾的书桌，或者给好朋友发一条问候。',
+    '最好的状态就是：不羡慕谁，不嘲笑谁，也不依赖谁。悄悄努力，默默成长，静静发光，活成自己真心喜欢的样子。不为了取悦任何人而改变，不为了迎合世俗而妥协。你的人生，由你自己来定义、来书写、来绽放。',
+  ],
+  sober: [
+    '可以努力改变的事，不要等，马上去做；努力了也改变不了的事，不要慌，学着接受。要相信你的下一站，一定是花开万里、晴空万丈。放轻松，深呼吸，一切都会慢慢好起来的。生活从不会亏待认真对待它的人。',
+    '不必讨好谁，不必勉强谁，不必活成别人眼里的完美样子。安安静静做自己，不慌不忙，自在从容，就是最好的活法。你不需要所有人的理解和认可，你只需要对得起自己的良心。你的节奏，就是这个世界上最好的节奏。',
+    '不内耗、不纠结、不焦虑，把心态放平，把日子过稳，把每一天都过得踏踏实实。不需要跟任何人比较，你有你的花期，他有他的轨道。自在从容地走自己的路，本身就是一种了不起的赢。愿你在自己的时区里，准时绽放。',
+    '学会与自己和解，接纳那个不够完美但一直在努力的自己，这是我们每个人一生都要认真修的必修课。你今天的样子，刚刚好。不必成为谁的太阳，你只需要照亮自己的路。温柔待己，坚定前行，一切都会刚刚好。',
+    '生活是自己的，真的与他人无关。让自己开心舒服，才是这一生最重要的事。别人的眼光、议论和评价，都不值得你浪费一秒钟去在意。愿你今天轻松自在，做最真实的自己，大胆地笑，痛快地活，无需取悦任何人。',
+    '别总回头看身后那条路，过去的故事已经写完了，翻篇了。无论是刻骨铭心的遗憾还是曾经耀眼的辉煌，都留在昨天吧。翻开今天这崭新的一页，还有无限可能、无限惊喜在等着你去发现。向前看，往前走，最好的总在未来。',
+  ],
+  ritual: [
+    '把普通平淡的日子，过出一点点仪式感。用心对待生活，生活才会处处给你意想不到的惊喜。一顿精致的早餐，一杯温热的牛奶，一束摆在窗台上的鲜花，都是对自己最好的温柔和犒赏。今天也要好好吃早餐，好好爱自己。',
+    '三餐烟火气，四季皆温柔。认真生活的人，总能在不经意间发现生活偷偷藏起来的糖果。或许是一缕洒在脸上的清晨阳光，或许是一阵拂过耳边的微凉晚风。生活不在别处，就在此刻、就在脚下。愿你的今天，温暖又美好。',
+    '好好吃好每一顿饭，安稳睡好每一个觉，认真照顾好身体和情绪，就是一个成年人顶级的自律和最深情的爱自己的方式。新的一天，从爱自己开始，从不将就开始，从认真对待每一件小事开始。你值得被认真对待。',
+    '保持心里的热爱，奔赴下一场山海。就算日子平凡重复，也可以过得热气腾腾、充满期待。今天也要元气满满地去拥抱生活，去见想见的人，去做想做的事，去吃想吃的美食。别等了，最好的时机就是现在，就是今天。',
+    '慢品人间烟火色，闲观万事岁月长。在这个快节奏的世界里，偶尔慢下来也是一种勇气和智慧。泡一杯清茶，读一本闲书，听一首老歌，让浮躁的心安静下来。心安之处，便是最好的时光。愿你享受此刻难得的宁静与自在。',
+    '清晨的第一缕阳光、街角飘来的咖啡香、耳机里循环播放的那首老歌——这些小小的确幸，就是生活最温柔的馈赠。不需要大富大贵，不需要功成名就，此刻内心的安稳和满足，就是人生最好的状态。早安，愿你今天一切顺利。',
+  ],
+  short: [
+    '心有暖阳，何惧风霜。只要心里有光，走到哪里都是明亮和坦途。不必仰望别人的光芒，你自己就是一颗正在冉冉升起的小太阳。愿你今天闪闪发光，温暖自己的同时也照亮身边的人，活成自己最美好的样子。早安，出发吧。',
+    '生活向阳，人生向暖。愿你在每一个平凡普通的日子里，都能收获心安与快乐，都能找到坚持下去的理由和勇气。不要着急，不要慌张，好的事情总是在不经意间悄悄发生的。保持微笑，保持善良，好运自然会来找你的。',
+    '保持热爱，全力以赴地去生活。未来的日子很长，万事皆可期，一切都还来得及。别让昨天的疲惫拖住了今天轻快的脚步，别让明天的焦虑偷走了今天珍贵的快乐。活在当下，享受此刻，今天也要好好加油哦。早安。',
+    '安安静静努力，悄悄默默拔尖，然后在某一天惊艳所有人。在无人看见的角落，积蓄最强大的力量，向下扎根，向上生长。你所有的付出都不会白费，你所有的坚持终将看到回报。今天也要默默努力，默默加油，默默发光。',
+    '愿你知足且上进，温柔且坚定，活成自己最喜欢最欣赏的模样。不攀附、不将就、不辜负，每一天都朝着更好的自己迈进一小步。新的一天开始了，窗外的阳光正好，而你刚好在最好的年纪。出发吧，一切都来得及。早安。',
+    '每一个清晨都是命运重新给我们的重启机会。昨天的一切已经彻底翻篇，遗憾也好、失落也罢，都留在了过去。今天是一张崭新的白纸，由你来决定画什么颜色、写什么故事。愿你落笔无悔，活出热爱。新的一天，开始了。',
+  ],
+};
+
+function pickFromPool(pool, dateStr) {
+  const d = new Date(dateStr);
+  const seed = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) % pool.length;
+  return pool[seed];
+}
+
+function buildScript(dateStr, weather, hotEvents) {
+  const d = new Date(dateStr);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const weekday = getWeekdayCN(d);
+  const dateCN = formatDateCN(dateStr);
+
+  // 按日期确定性选择模板类别（每天固定类别，但每天不同）
+  const catKeys = ['healing', 'growth', 'sober', 'ritual', 'short'];
+  const catIdx = (month * 31 + day) % catKeys.length;
+  const pool = SCRIPT_POOLS[catKeys[catIdx]];
+
+  // 从选定池中按日期取一句（同一天始终同一句）
+  const body = pickFromPool(pool, dateStr);
+
+  // 天气温馨提示（自然融入）
+  let weatherNote = '';
+  if (weather) {
+    if (weather.high > 35) weatherNote = '今天天气炎热，出门记得多喝水、做好防晒。';
+    else if (weather.high > 30) weatherNote = '今天有点热，注意防暑降温哦。';
+    else if (weather.low < 5) weatherNote = '今天天气寒冷，出门记得添衣保暖。';
+    else if (weather.low < 15) weatherNote = '早晚温差较大，记得带一件外套。';
+    else if (weather.weather && weather.weather.includes('雨')) weatherNote = '今天有雨，出门记得带伞。';
+  }
+
+  // 拼接抖音风早安电台文案
+  let script = '';
+  script += `早安电台  ·  ${dateCN}  ${weekday}\n\n`;
+
+  script += `今天是${month}月${day}日，${weekday}，早安。\n\n`;
+  script += body;
+
+  if (weatherNote) {
+    script += `\n\n${weatherNote}`;
+  }
+
+  script += `\n\n加油！`;
+
+  return script;
+}
+
+function getHistory(month, day) {
+  const events = {
+    '1,1': '元旦 — 新年的第一天，全球共同庆祝。',
+    '1,10': '1949年淮海战役胜利结束。',
+    '1,26': '1841年香港岛被英国占领，1997年回归祖国。',
+    '2,14': '情人节  — 表达爱意的浪漫节日。',
+    '3,5': '学雷锋纪念日 — 1963年毛泽东题词"向雷锋同志学习"。',
+    '3,8': '国际妇女节 — 致敬每一位了不起的她。',
+    '3,12': '植树节 — 为地球增添一抹绿色。',
+    '3,15': '国际消费者权益日。',
+    '4,22': '世界地球日 — 保护我们共同的家园。',
+    '5,1': '国际劳动节 — 致敬每一位劳动者。',
+    '5,4': '五四青年节 — 1919年五四运动，爱国精神的丰碑。',
+    '5,12': '全国防灾减灾日 — 铭记2008年汶川大地震。',
+    '6,1': '国际儿童节 — 守护每一个孩子的童年。',
+    '6,5': '世界环境日 — 共建清洁美丽世界。',
+    '7,1': '中国共产党成立纪念日 (1921年)。',
+    '7,7': '七七事变纪念日 (1937年) — 铭记历史，勿忘国耻。',
+    '8,1': '中国人民解放军建军节 (1927年南昌起义)。',
+    '9,10': '教师节 — 致敬每一位辛勤耕耘的老师。',
+    '9,18': '九一八事变纪念日 (1931年) — 铭记历史。',
+    '10,1': '国庆节 — 1949年中华人民共和国成立！',
+    '10,10': '辛亥革命纪念日 (1911年) — 推翻帝制的伟大革命。',
+    '11,8': '中国记者节。',
+    '11,11': '人民空军成立纪念日 (1949年)。',
+    '12,13': '南京大屠杀死难者国家公祭日 (1937年)。',
+    '12,25': '圣诞节 — 西方传统节日。',
+  };
+  const key = `${month},${day}`;
+  return events[key] || `历史上的${month}月${day}日 — 每一天都是独一无二的历史，由你来书写。`;
+}
+
+// ── 主流程 ────────────────────────────────────────────────────────
+const output = document.getElementById('output');
+const btnGen = document.getElementById('btnGenerate');
+const btnSpeak = document.getElementById('btnSpeak');
+const btnCopy = document.getElementById('btnCopy');
+const datePicker = document.getElementById('datePicker');
+
+// 默认今天
+const today = new Date().toISOString().split('T')[0];
+datePicker.value = today;
+
+let currentScript = '';
+let isSpeaking = false;
+
+btnGen.addEventListener('click', async () => {
+  const dateStr = datePicker.value;
+  if (!dateStr) return;
+
+  btnGen.disabled = true;
+  btnGen.textContent = '⏳ 生成中...';
+  output.innerHTML = '<div class="status"><div class="spinner"></div><p>正在获取天气数据...</p></div>';
+
+  const weatherData = await fetchWeather(39.9, 116.4).catch(() => null);
+
+  currentScript = buildScript(dateStr, weatherData, null);
+
+  output.innerHTML = `<div class="script-card"><div class="time-badge"> ${formatDateCN(dateStr)}</div>${escapeHTML(currentScript).replace(/\n/g, '<br>')}</div>`;
+  btnSpeak.disabled = false;
+  btnCopy.disabled = false;
+  btnGenVideo.disabled = false;
+  btnGen.disabled = false;
+  btnGen.textContent = ' 重新生成';
+});
+
+btnSpeak.addEventListener('click', () => {
+  if (!currentScript) return;
+  if (isSpeaking) {
+    window.speechSynthesis.cancel();
+    isSpeaking = false;
+    btnSpeak.textContent = ' 朗读';
+    return;
+  }
+  const utterance = new SpeechSynthesisUtterance(currentScript);
+  utterance.lang = 'zh-CN';
+  utterance.rate = 0.9;
+  utterance.pitch = 1.05;
+  utterance.onend = () => { isSpeaking = false; btnSpeak.textContent = ' 朗读'; };
+  utterance.onerror = () => { isSpeaking = false; btnSpeak.textContent = ' 朗读'; };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+  isSpeaking = true;
+  btnSpeak.textContent = '⏹ 停止';
+});
+
+btnCopy.addEventListener('click', async () => {
+  if (!currentScript) return;
+  try {
+    await navigator.clipboard.writeText(currentScript);
+    btnCopy.textContent = '✓ 已复制';
+    setTimeout(() => { btnCopy.textContent = ' 复制文案'; }, 2000);
+  } catch {
+    btnCopy.textContent = '✗ 失败';
+    setTimeout(() => { btnCopy.textContent = ' 复制文案'; }, 2000);
+  }
+});
+
+// ── 视频生成 ───────────────────────────────────────────────────────
+const btnGenVideo = document.getElementById('btnGenVideo');
+const videoStatus = document.getElementById('videoStatus');
+const videoPlayer = document.getElementById('videoPlayer');
+const previewVideo = document.getElementById('previewVideo');
+const btnVideoClose = document.getElementById('btnVideoClose');
+
+btnVideoClose.addEventListener('click', () => {
+  previewVideo.pause();
+  previewVideo.src = '';
+  videoPlayer.style.display = 'none';
+});
+
+let cancelGeneration = null;
+
+btnGenVideo.addEventListener('click', async () => {
+  if (!currentScript) return;
+
+  // If already generating, the button acts as cancel
+  if (btnGenVideo.dataset.generating === 'true') {
+    cancelGen();
+    return;
+  }
+
+  btnGenVideo.disabled = false;
+  btnGenVideo.dataset.generating = 'true';
+  btnGenVideo.textContent = '⏹ 取消生成';
+  btnGenVideo.style.background = '#ff6b6b';
+  btnGenVideo.style.color = '#fff';
+  videoStatus.innerHTML = '<div class="status"><div class="spinner"></div><p>正在提交视频生成...</p></div>';
+  videoPlayer.style.display = 'none';
+
+  let cancelled = false;
+  cancelGeneration = function() {
+    cancelled = true;
+    fetch('/cancel', { method: 'POST' }).catch(() => {});
+  };
+
+  try {
+    const r = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: currentScript, name: 'morning_radio' })
+    });
+    if (!r.ok) {
+      const err = await r.json();
+      throw new Error(err.error || '请求失败');
+    }
+    // Poll status
+    let done = false;
+    while (!done && !cancelled) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (cancelled) break;
+      const sr = await fetch('/status');
+      const st = await sr.json();
+      const pct = parseProgress(st.progress);
+      const stageText = parseStage(st.progress);
+      if (pct >= 0) {
+        videoStatus.innerHTML =
+          '<div class="status">' +
+            '<div class="progress-pct">' + pct + '%</div>' +
+            '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>' +
+            '<p style="margin-top:10px;color:var(--accent);font-size:0.9em;"> 正在渲染视频...</p>' +
+            '<p style="margin-top:4px;color:var(--sub);font-size:0.75em;font-family:monospace;">' + escapeHTML(st.progress.substring(0, 80)) + '</p>' +
+          '</div>';
+      } else {
+        videoStatus.innerHTML =
+          '<div class="status">' +
+            '<div class="spinner"></div>' +
+            '<p style="margin-top:10px;font-size:1em;">' + escapeHTML(stageText) + '</p>' +
+            '<p style="margin-top:4px;color:var(--sub);font-size:0.75em;font-family:monospace;">' + escapeHTML(st.progress || '') + '</p>' +
+          '</div>';
+      }
+      if (!st.running) {
+        done = true;
+        if (st.output) {
+          videoStatus.innerHTML = '';
+          previewVideo.src = '/video?t=' + Date.now();
+          videoPlayer.style.display = 'block';
+          previewVideo.play();
+          loadHistory();
+        } else if (st.error) {
+          videoStatus.innerHTML = '<div class="error-msg">' + escapeHTML(st.error) + '</div>';
+        }
+      }
+    }
+    if (cancelled) {
+      videoStatus.innerHTML = '<div class="status"><p style="color:var(--sub);"> 已取消生成</p></div>';
+    }
+  } catch(e) {
+    if (!cancelled) {
+      videoStatus.innerHTML = '<div class="error-msg">' + escapeHTML(e.message) + '</div>';
+    }
+  }
+  // Reset button state
+  btnGenVideo.dataset.generating = '';
+  btnGenVideo.textContent = ' 生成视频';
+  btnGenVideo.style.background = '';
+  btnGenVideo.style.color = '';
+  btnGenVideo.disabled = false;
+  cancelGeneration = null;
+});
+
+function cancelGen() {
+  if (cancelGeneration) cancelGeneration();
+}
+
+// ── 历史记录 ───────────────────────────────────────────────────────
+const historyList = document.getElementById('historyList');
+
+async function loadHistory() {
+  try {
+    const r = await fetch('/history');
+    const items = await r.json();
+    if (!items.length) {
+      historyList.innerHTML = '<div class="history-empty">暂无生成记录，快去生成第一个视频吧！</div>';
+      return;
+    }
+    historyList.innerHTML = items.map((h, i) => `
+      <div class="history-item" data-name="${escapeHTML(h.name)}">
+        <div class="h-thumb">▶</div>
+        <div class="h-info">
+          <div class="h-time">${escapeHTML(h.time)}  ·  耗时 ${h.duration}s</div>
+          <div class="h-text">${escapeHTML(h.text)}</div>
+        </div>
+        <div class="h-actions">
+          <button class="h-play" data-name="${escapeHTML(h.name)}">▶ 播放</button>
+          <button class="h-dl" data-name="${escapeHTML(h.name)}"> 下载</button>
+        </div>
+      </div>
+    `).join('');
+
+    // Play button handler
+    historyList.querySelectorAll('.h-play').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const name = btn.dataset.name;
+        previewVideo.src = '/video?name=' + encodeURIComponent(name + '.mp4');
+        videoPlayer.style.display = 'block';
+        previewVideo.play();
+        videoPlayer.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+
+    // Download button handler
+    historyList.querySelectorAll('.h-dl').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const name = btn.dataset.name;
+        const a = document.createElement('a');
+        a.href = '/video?name=' + encodeURIComponent(name + '.mp4');
+        a.download = name + '.mp4';
+        a.click();
+      });
+    });
+
+    // Click on entire item to play
+    historyList.querySelectorAll('.history-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const name = item.dataset.name;
+        previewVideo.src = '/video?name=' + encodeURIComponent(name + '.mp4');
+        videoPlayer.style.display = 'block';
+        previewVideo.play();
+        videoPlayer.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  } catch(e) {
+    historyList.innerHTML = '<div class="history-empty">加载失败: ' + escapeHTML(e.message) + '</div>';
+  }
+}
+
+function parseProgress(raw) {
+  // Parse tqdm-style progress like "t:  22%|..." or "  47%|..."
+  if (!raw) return -1;
+  const m = raw.match(/(\d+)%/);
+  return m ? parseInt(m[1]) : -1;
+}
+
+function parseStage(raw) {
+  if (!raw) return '准备中...';
+  if (raw.includes('TTS') || raw.includes('语音')) return '正在合成语音...';
+  if (raw.includes('素材') || raw.includes('Pexels')) return '正在获取视频素材...';
+  if (raw.includes('滤镜') || raw.includes('合成')) return '正在合成视频画面...';
+  if (raw.includes('导出')) return '正在导出视频文件...';
+  if (raw.startsWith('t:') || raw.includes('%')) return '正在渲染视频...';
+  if (raw.includes('开始')) return '开始生成...';
+  if (raw.includes('完成')) return '完成！';
+  return raw.substring(0, 40);
+}
+
+function escapeHTML(str) {
+  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+  return str.replace(/[&<>"']/g, c => map[c]);
+}
+
+// 页面加载时自动生成 & 加载历史
+btnGen.click();
+loadHistory();
+</script>
+</body>
+</html>

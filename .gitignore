@@ -1,0 +1,25 @@
+# 生成输出（视频文件太大）
+output/*.mp4
+output/*.mp3
+output/*.wav
+output/history.json
+
+# 素材库（体积大，本地数据）
+素材库/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 临时文件
+*.tmp
+temp/
+
+# IDE
+.vscode/
+.idea/
+
+# 系统文件
+Thumbs.db
+Desktop.ini
