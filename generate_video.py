@@ -411,8 +411,8 @@ def _get_font(name, size):
     return font
 
 
-def _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width, max_width):
-    """Render text to a transparent RGBA PIL image."""
+def _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width, max_width, glass_bg=False):
+    """Render text to a transparent RGBA PIL image with optional glass background."""
     font = _get_font(fontname, fontsize)
 
     # Calculate wrapping
@@ -421,7 +421,6 @@ def _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width,
         if not paragraph.strip():
             lines.append(' ')
             continue
-        # simple char-based wrapping
         current = ''
         for ch in paragraph:
             test = current + ch
@@ -435,11 +434,22 @@ def _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width,
             lines.append(current)
 
     line_height = int(fontsize * 1.5)
-    img_h = line_height * len(lines) + stroke_width * 4 + 20
-    img_w = max_width + stroke_width * 4 + 20
+    pad = stroke_width * 4 + 20
+    img_h = line_height * len(lines) + pad
+    img_w = max_width + pad
 
     img = PILImage.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+
+    # Glass background (rounded rectangle)
+    if glass_bg:
+        glass_pad = 12
+        gx1, gy1 = glass_pad, glass_pad
+        gx2, gy2 = img_w - glass_pad, img_h - glass_pad
+        # Draw rounded rect with semi-transparent black
+        r = 16
+        draw.rounded_rectangle([gx1, gy1, gx2, gy2], radius=r,
+                               fill=(0, 0, 0, 100), outline=(255, 255, 255, 40), width=1)
 
     y = stroke_width * 2 + 10
     for line in lines:
@@ -456,23 +466,22 @@ def _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width,
         draw.text((x, y), line, font=font, fill=color)
         y += line_height
 
-    # Crop to content
     img = img.crop(img.getbbox() or (0, 0, img_w, img_h))
     return np.array(img)
 
 
 def make_text_clip(text, fontsize=40, color="white", stroke_color="black",
-                   stroke_width=2, max_width=None, fontname="msyh"):
+                   stroke_width=2, max_width=None, fontname="msyh", glass_bg=False):
     """Create an ImageClip from PIL-rendered text. Use in CompositeVideoClip."""
     if max_width is None:
         max_width = int(W * 0.85)
-    img_array = _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width, max_width)
+    img_array = _pil_text_image(text, fontname, fontsize, color, stroke_color, stroke_width, max_width, glass_bg)
     clip = ImageClip(img_array, transparent=True)
     return clip
 
 
 def subtitle_clips(text, audio_dur):
-    """Split text into sentence subtitle clips."""
+    """Split text into sentence subtitle clips with glass background."""
     sents = [s.strip() for s in re.split(r"[。！？\n]+", text) if len(s.strip()) > 2]
     if not sents:
         return []
@@ -484,10 +493,11 @@ def subtitle_clips(text, audio_dur):
         if dur < 0.5:
             break
         try:
-            tc = make_text_clip(sent, fontsize=40, color="white",
-                                stroke_color="#333333", stroke_width=2)
-            tc = tc.set_position(("center", int(H * 0.82)))
+            tc = make_text_clip(sent, fontsize=42, color="#FFFEF0",
+                                stroke_color="#222222", stroke_width=2, glass_bg=True)
+            tc = tc.set_position(("center", int(H * 0.80)))
             tc = tc.set_start(t).set_duration(dur)
+            tc = tc.crossfadein(0.25)
             clips.append(tc)
         except Exception as e:
             print(f"    subtitle warn: {e}")
@@ -622,6 +632,13 @@ def build_video(script_text, output_name="morning_radio"):
             remain -= d
         print(f"  程序化生成了 {len(clips)} 段（6种场景轮换）")
 
+    # 为所有素材片段添加淡入淡出
+    for i, c in enumerate(clips):
+        if c.duration > 1.5:
+            clips[i] = c.crossfadein(0.6).crossfadeout(0.6)
+        elif c.duration > 0.8:
+            clips[i] = c.crossfadein(0.25).crossfadeout(0.25)
+
     # 拼接
     if len(clips) == 1:
         video = clips[0].set_duration(total_dur)
@@ -634,25 +651,34 @@ def build_video(script_text, output_name="morning_radio"):
 
     # ── 滤镜 ────────────────────────────────────────────────
     print("\n[3/4] 春日滤镜 + 合成...")
-    # Warm spring color grading
-    video = video.fx(lambda c: c.fl_image(
-        lambda frame: np.clip(frame.astype(float) * [1.02, 1.0, 0.95] + [8, 3, 0], 0, 255).astype(np.uint8)
-    ))
+    # Warm spring color grading + subtle vignette
+    def color_grade(frame):
+        graded = np.clip(frame.astype(float) * [1.03, 1.0, 0.94] + [10, 4, -2], 0, 255)
+        h, w = graded.shape[:2]
+        # Subtle vignette: darken corners
+        y, x = np.ogrid[:h, :w]
+        cx, cy = w * 0.5, h * 0.45
+        dist = np.sqrt(((x - cx) / (w * 0.75)) ** 2 + ((y - cy) / (h * 0.75)) ** 2)
+        vignette = np.clip(1.0 - dist * 0.35, 0.7, 1.0)
+        graded = np.clip(graded * vignette[:, :, np.newaxis], 0, 255)
+        return graded.astype(np.uint8)
 
-    # Title & date (PIL rendered)
+    video = video.fx(lambda c: c.fl_image(color_grade))
+
+    # Title & date with glass style
     from datetime import datetime
     date_str = datetime.now().strftime("%Y年%m月%d日")
 
-    title = make_text_clip("早安电台", fontsize=72, color="#FFF5E6",
-                           stroke_color="#CC8899", stroke_width=3, max_width=int(W * 0.6))
-    title = title.set_position(("center", int(H * 0.10)))
-    title = title.set_duration(min(6, total_dur))
+    title = make_text_clip("早安电台", fontsize=72, color="#FFFEF5",
+                           stroke_color="#996677", stroke_width=3, max_width=int(W * 0.6), glass_bg=True)
+    title = title.set_position(("center", int(H * 0.08)))
+    title = title.set_duration(min(7, total_dur))
     title = title.crossfadein(1.0).crossfadeout(1.5)
 
-    date_txt = make_text_clip(date_str, fontsize=36, color="#FFEEDD",
-                              stroke_color="#886666", stroke_width=2, max_width=int(W * 0.5))
-    date_txt = date_txt.set_position(("center", int(H * 0.21)))
-    date_txt = date_txt.set_duration(min(6, total_dur))
+    date_txt = make_text_clip(date_str, fontsize=34, color="#FFE8D6",
+                              stroke_color="#775555", stroke_width=2, max_width=int(W * 0.45))
+    date_txt = date_txt.set_position(("center", int(H * 0.20)))
+    date_txt = date_txt.set_duration(min(7, total_dur))
     date_txt = date_txt.crossfadein(1.2).crossfadeout(1.5)
 
     subs = subtitle_clips(script_text, total_dur)

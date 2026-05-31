@@ -147,7 +147,15 @@
     cursor: pointer;
   }
   .history-item:hover { border-color: var(--accent); }
-  .history-item .h-thumb { width: 120px; height: 68px; border-radius: 8px; background: var(--bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 2em; }
+  .history-item .h-thumb { width: 140px; height: 78px; border-radius: 10px; background: var(--bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 2em; position: relative; overflow: hidden; }
+  .h-thumb-play {
+    display: none; position: absolute; inset: 0;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.45); border-radius: 10px;
+    color: #fff; font-size: 1.2em;
+  }
+  .history-item:hover .h-thumb-play, .h-thumb[style*="url"]:not([style*="none"]) .h-thumb-play { display: flex; }
+  .h-thumb:not([style*="url"]) .h-thumb-play { display: flex; background: rgba(0,0,0,0.3); }
   .history-item .h-info { flex: 1; min-width: 0; }
   .history-item .h-time { color: var(--sub); font-size: 0.82em; }
   .history-item .h-text { color: var(--text); font-size: 0.9em; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -187,10 +195,17 @@
   }
   .progress-pct { font-size: 1.1em; font-weight: 700; color: var(--accent); }
 
-  @media (max-width: 600px) {
+  @media (max-width: 700px) {
     header h1 { font-size: 1.5em; }
-    .script-card { padding: 20px 18px; font-size: 0.9em; }
-    .controls { flex-direction: column; align-items: stretch; }
+    header p { font-size: 0.85em; }
+    .script-card { padding: 20px 16px; font-size: 0.9em; }
+    .controls { flex-direction: column; align-items: stretch; padding: 14px 16px; }
+    .controls label { font-size: 0.82em; }
+    .controls input[type="date"] { font-size: 0.95em; padding: 8px 12px; }
+    .btn { padding: 8px 16px; font-size: 0.9em; }
+    body { padding: 10px; }
+    .history-item { flex-wrap: wrap; padding: 12px; }
+    .history-item .h-thumb { width: 100px; height: 56px; }
   }
 </style>
 </head>
@@ -296,7 +311,74 @@ function formatDateCN(dateStr) {
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
 
-// 五大类爆款文案模板池 — 每条约100字
+// ── 节气查询 ──────────────────────────────────────────────────
+function getSolarTerm(dateStr) {
+  const d = new Date(dateStr);
+  const m = d.getMonth() + 1, day = d.getDate();
+  // 24节气大致日期（±1天）
+  const terms = [
+    {name:'小寒', m:1, d:5}, {name:'大寒', m:1, d:20},
+    {name:'立春', m:2, d:4}, {name:'雨水', m:2, d:19},
+    {name:'惊蛰', m:3, d:5}, {name:'春分', m:3, d:20},
+    {name:'清明', m:4, d:5}, {name:'谷雨', m:4, d:20},
+    {name:'立夏', m:5, d:5}, {name:'小满', m:5, d:21},
+    {name:'芒种', m:6, d:6}, {name:'夏至', m:6, d:21},
+    {name:'小暑', m:7, d:7}, {name:'大暑', m:7, d:22},
+    {name:'立秋', m:8, d:7}, {name:'处暑', m:8, d:23},
+    {name:'白露', m:9, d:7}, {name:'秋分', m:9, d:23},
+    {name:'寒露', m:10,d:8}, {name:'霜降', m:10,d:23},
+    {name:'立冬', m:11,d:7}, {name:'小雪', m:11,d:22},
+    {name:'大雪', m:12,d:7}, {name:'冬至', m:12,d:22},
+  ];
+  let best = null;
+  for (const t of terms) {
+    const td = t.m * 100 + t.d;
+    const dd = m * 100 + day;
+    if (dd >= td && (!best || td > best.m * 100 + best.d)) best = t;
+  }
+  if (!best) best = terms[terms.length - 1]; // 小寒之前用冬至
+  return best;
+}
+
+function getSeasonName(month) {
+  if (month >= 3 && month <= 5) return '春天';
+  if (month >= 6 && month <= 8) return '夏天';
+  if (month >= 9 && month <= 11) return '秋天';
+  return '冬天';
+}
+
+// ── 每日一句名言 ──────────────────────────────────────────────
+const DAILY_QUOTES = [
+  {q:'万物皆有裂痕，那是光照进来的地方。', a:'莱昂纳德·科恩'},
+  {q:'生活不是等待风暴过去，而是学会在雨中翩翩起舞。', a:'佚名'},
+  {q:'你若爱，生活哪里都可爱。', a:'丰子恺'},
+  {q:'世界上只有一种真正的英雄主义，那就是认清生活真相后依然热爱生活。', a:'罗曼·罗兰'},
+  {q:'心之所向，素履以往；生如逆旅，一苇以航。', a:'七堇年'},
+  {q:'不乱于心，不困于情，不畏将来，不念过往。', a:'丰子恺'},
+  {q:'既然选择了远方，便只顾风雨兼程。', a:'汪国真'},
+  {q:'没有一个冬天不可逾越，没有一个春天不会来临。', a:'佚名'},
+  {q:'人间有味是清欢。', a:'苏轼'},
+  {q:'此心安处是吾乡。', a:'苏轼'},
+  {q:'行到水穷处，坐看云起时。', a:'王维'},
+  {q:'长风破浪会有时，直挂云帆济沧海。', a:'李白'},
+  {q:'与其临渊羡鱼，不如退而结网。', a:'《汉书》'},
+  {q:'星光不问赶路人，时光不负有心人。', a:'佚名'},
+  {q:'愿你出走半生，归来仍是少年。', a:'佚名'},
+  {q:'凡是过往，皆为序章。', a:'莎士比亚'},
+  {q:'脚踏实地，仰望星空。', a:'佚名'},
+  {q:'种一棵树最好的时间是十年前，其次是现在。', a:'非洲谚语'},
+  {q:'日日行，不怕千万里；常常做，不怕千万事。', a:'《格言联璧》'},
+  {q:'人生如逆旅，我亦是行人。', a:'苏轼'},
+  {q:'莫愁前路无知己，天下谁人不识君。', a:'高适'},
+];
+
+function pickDailyQuote(dateStr) {
+  const d = new Date(dateStr);
+  const idx = (d.getFullYear() * 366 + d.getMonth() * 31 + d.getDate()) % DAILY_QUOTES.length;
+  return DAILY_QUOTES[idx];
+}
+
+// 七大类别爆款文案模板池 — 每条约100字
 const SCRIPT_POOLS = {
   healing: [
     '生活真的不用太赶，慢慢来就好。你心里想要的那些东西，时光都会一点一点地给到你。不管今天会遇到什么困难和挑战，请记得先给自己一个温暖的微笑。新的一天，愿你不慌不忙，心有暖阳，被这个世界温柔以待。',
@@ -305,6 +387,7 @@ const SCRIPT_POOLS = {
     '把自己的心情照顾好，比什么都重要。心顺了，身边的人和事，慢慢也就跟着顺了，整个世界都会变得温柔起来。别再为鸡毛蒜皮的小事烦恼，今天也要好好爱自己多一点。你值得被珍惜，值得被认真对待。早安。',
     '我们不必活得多光芒万丈，但一定要始终温暖有光。认真生活，好好吃饭，踏实做事，这就是最好的人生状态。不需要让所有人都满意，你只需要对自己诚实、对生活真诚。愿你今天笑容灿烂，眼里有光，脚下有路。',
     '成年人的世界从来不容易，但你每一次咬牙坚持的早起，每一次擦干眼泪后的重新振作，都在让你变得比以前更加强大。每一个努力早起的你都值得被温柔以待。愿你今天遇到的都是善意，走过的都是坦途。',
+    '累了就休息一下，困了就睡一觉，饿了就好好吃饭。天不会塌下来，生活也不会因为你慢一步就抛弃你。对自己温柔一点，你已经在尽力了，这就够了。新的一天，允许自己松弛，允许自己不完美。早安。',
   ],
   growth: [
     '你不需要很厉害才能开始，但你一定要先勇敢地开始，才会慢慢变得很厉害。行动永远比空想有用一百倍，迈出第一步就是最大的胜利。今天做一点，明天再做一点，总有一天你会感谢现在拼命努力的自己。加油吧。',
@@ -313,6 +396,7 @@ const SCRIPT_POOLS = {
     '人生没有白走的路，每一步经历都算数，一步也不会少。好的给你温暖，坏的给你教训，它们都是在成全你独一无二的人生风景。回头看看，你已经咬着牙走了很远的路。相信自己，你比想象中更强大，比昨天更接近梦想。',
     '少想那些没用的事，少纠结那些改变不了的人和事。让自己忙起来、充实起来，专注做好眼前的事，你会发现自己越过越好。今天，就从完成一件小事开始吧，哪怕只是整理好久没收拾的书桌，或者给好朋友发一条问候。',
     '最好的状态就是：不羡慕谁，不嘲笑谁，也不依赖谁。悄悄努力，默默成长，静静发光，活成自己真心喜欢的样子。不为了取悦任何人而改变，不为了迎合世俗而妥协。你的人生，由你自己来定义、来书写、来绽放。',
+    '成长从来不是一蹴而就的事，它是一点一滴的积累，是无数次想要放弃又咬牙坚持的瞬间。那些看似不起波澜的日复一日，终会在某一天让你看到坚持的意义。今天，继续做那个勇敢的自己吧。',
   ],
   sober: [
     '可以努力改变的事，不要等，马上去做；努力了也改变不了的事，不要慌，学着接受。要相信你的下一站，一定是花开万里、晴空万丈。放轻松，深呼吸，一切都会慢慢好起来的。生活从不会亏待认真对待它的人。',
@@ -321,6 +405,7 @@ const SCRIPT_POOLS = {
     '学会与自己和解，接纳那个不够完美但一直在努力的自己，这是我们每个人一生都要认真修的必修课。你今天的样子，刚刚好。不必成为谁的太阳，你只需要照亮自己的路。温柔待己，坚定前行，一切都会刚刚好。',
     '生活是自己的，真的与他人无关。让自己开心舒服，才是这一生最重要的事。别人的眼光、议论和评价，都不值得你浪费一秒钟去在意。愿你今天轻松自在，做最真实的自己，大胆地笑，痛快地活，无需取悦任何人。',
     '别总回头看身后那条路，过去的故事已经写完了，翻篇了。无论是刻骨铭心的遗憾还是曾经耀眼的辉煌，都留在昨天吧。翻开今天这崭新的一页，还有无限可能、无限惊喜在等着你去发现。向前看，往前走，最好的总在未来。',
+    '人生不过三万多天，开心一天赚一天。别把有限的时间和精力浪费在无关紧要的人和事上。多花时间陪伴爱你的人，多做让自己快乐的事。今天也要好好享受生活啊。',
   ],
   ritual: [
     '把普通平淡的日子，过出一点点仪式感。用心对待生活，生活才会处处给你意想不到的惊喜。一顿精致的早餐，一杯温热的牛奶，一束摆在窗台上的鲜花，都是对自己最好的温柔和犒赏。今天也要好好吃早餐，好好爱自己。',
@@ -329,6 +414,7 @@ const SCRIPT_POOLS = {
     '保持心里的热爱，奔赴下一场山海。就算日子平凡重复，也可以过得热气腾腾、充满期待。今天也要元气满满地去拥抱生活，去见想见的人，去做想做的事，去吃想吃的美食。别等了，最好的时机就是现在，就是今天。',
     '慢品人间烟火色，闲观万事岁月长。在这个快节奏的世界里，偶尔慢下来也是一种勇气和智慧。泡一杯清茶，读一本闲书，听一首老歌，让浮躁的心安静下来。心安之处，便是最好的时光。愿你享受此刻难得的宁静与自在。',
     '清晨的第一缕阳光、街角飘来的咖啡香、耳机里循环播放的那首老歌——这些小小的确幸，就是生活最温柔的馈赠。不需要大富大贵，不需要功成名就，此刻内心的安稳和满足，就是人生最好的状态。早安，愿你今天一切顺利。',
+    '给自己留一点独处的时光吧。哪怕只是五分钟的放空，十分钟的散步，半小时的阅读。在这些不被打扰的时刻里，你才能听见自己内心真正的声音。今天，留一点时间给自己。早安。',
   ],
   short: [
     '心有暖阳，何惧风霜。只要心里有光，走到哪里都是明亮和坦途。不必仰望别人的光芒，你自己就是一颗正在冉冉升起的小太阳。愿你今天闪闪发光，温暖自己的同时也照亮身边的人，活成自己最美好的样子。早安，出发吧。',
@@ -337,6 +423,25 @@ const SCRIPT_POOLS = {
     '安安静静努力，悄悄默默拔尖，然后在某一天惊艳所有人。在无人看见的角落，积蓄最强大的力量，向下扎根，向上生长。你所有的付出都不会白费，你所有的坚持终将看到回报。今天也要默默努力，默默加油，默默发光。',
     '愿你知足且上进，温柔且坚定，活成自己最喜欢最欣赏的模样。不攀附、不将就、不辜负，每一天都朝着更好的自己迈进一小步。新的一天开始了，窗外的阳光正好，而你刚好在最好的年纪。出发吧，一切都来得及。早安。',
     '每一个清晨都是命运重新给我们的重启机会。昨天的一切已经彻底翻篇，遗憾也好、失落也罢，都留在了过去。今天是一张崭新的白纸，由你来决定画什么颜色、写什么故事。愿你落笔无悔，活出热爱。新的一天，开始了。',
+    '保持内心的平静，在这个喧嚣的世界里，安静本身就是一种力量。不需要在意别人的眼光和评价，你只需要做好自己，走好自己的路。愿你今天从容而笃定，温柔而有力。早安。',
+  ],
+  seasonal: [
+    '一年中最美的季节来了。窗外的花开了，树绿了，空气中都是甜甜的味道。趁着好时光，出去走走，感受这个季节独有的温柔与浪漫。别忘了用手机记录下身边的风景。今天的你，和这好天气一样美好。早安。',
+    '季节在流转，生活在继续。每一个季节都有它独特的美好，就像人生的每一个阶段都有它不可替代的意义。珍惜当下的温度，珍惜眼前的人，珍惜正在经历的这一刻。愿你四季平安，日日是好日。',
+    '天气好的时候，记得抬头看看天空。蓝天白云从不收费，却是治愈心情最好的良药。大自然是最好的疗愈师，阳光、微风、鸟鸣，比任何言语都更有力量。今天，让好天气治愈你的一切不开心。',
+    '换季的时候，身体和心情都需要慢慢地适应。别苛责自己偶尔的疲態和低落，就像树在秋天会落叶，在春天会发芽，你也需要给自己一点调整的时间。照顾好自己，从添一件衣服、喝一杯温水开始。',
+    '当下正是最好的时节，不冷不热，不骄不躁。就像我们的人生，最好的状态就是这样的刚刚好。不必追求极端的热烈，也不必害怕偶尔的清冷。平衡，就是最大的智慧。早安，愿你今天一切刚刚好。',
+    '每一个季节都有它的脾气，就像每一个人都有自己的性格。学着顺应自然，学着接纳自己，学会和这个世界温柔地相处。春有百花秋有月，夏有凉风冬有雪，心中无事，便是人间好时节。',
+    '这个季节适合慢下来，看一场日落，吹一阵晚风，听一场夜雨。生活的美好往往藏在这些细小的时刻里。别总是忙忙碌碌，偶尔停下来，你会发现这个世界比你想象的更温柔、更值得。',
+  ],
+  quote: [
+    '今天想和你分享一句话："只管走过去，不必逗留着去采了花朵来保存，因为一路上，花朵自会继续开放的。" 昨天的美好不必留恋，未来的惊喜还在前方。朝前看，向前走，你要的一切都在来的路上。',
+    '听过一句话："人生最遗憾的，莫过于轻易地放弃了不该放弃的，固执地坚持了不该坚持的。" 愿你今天有辨别的智慧，有取舍的勇气，有重新开始的底气。做出你心里真正想做的选择吧。',
+    '"我们读所有的书，最终的目的都是读到自己。" 每一段文字，每一句话，其实都是在帮你更清楚地看见自己。今天，也试着和自己好好相处吧。安静地听听自己心里真正的声音。早安。',
+    '"生活总是让我们遍体鳞伤，但到后来，那些受伤的地方一定会变成我们最强壮的地方。" 海明威的这句话送给今天可能感到疲惫的你。别怕，你现在经历的，都在让你变强。',
+    '"愿你生命中有够多的云翳，来造成一个美丽的黄昏。" 冰心奶奶的话温柔又有力量。那些不太顺利的时刻，那些小小的挫折和不如意，都在为你的人生积累厚度。一切都是最好的安排。',
+    '"人不是因为有力量才坚持，而是因为坚持了才有力量。" 这句话送给你。当你觉得快要坚持不下去的时候，再撑一下，你就已经比上一秒的自己更有力量了。今天也要加油哦。',
+    '"真正的自由不是想做什么就做什么，而是不想做什么就可以不做什么。" 愿你今天拥有选择的自由，说"不"的权利，和做自己的勇气。不委曲求全，不愧对自己。早安，加油。',
   ],
 };
 
@@ -346,42 +451,60 @@ function pickFromPool(pool, dateStr) {
   return pool[seed];
 }
 
-function buildScript(dateStr, weather, hotEvents) {
+function buildScript(dateStr, weather) {
   const d = new Date(dateStr);
   const month = d.getMonth() + 1;
   const day = d.getDate();
   const weekday = getWeekdayCN(d);
   const dateCN = formatDateCN(dateStr);
+  const season = getSeasonName(month);
+  const term = getSolarTerm(dateStr);
 
-  // 按日期确定性选择模板类别（每天固定类别，但每天不同）
-  const catKeys = ['healing', 'growth', 'sober', 'ritual', 'short'];
+  // 按日期确定性选择模板类别（7大类轮换）
+  const catKeys = ['healing', 'growth', 'sober', 'ritual', 'short', 'seasonal', 'quote'];
   const catIdx = (month * 31 + day) % catKeys.length;
   const pool = SCRIPT_POOLS[catKeys[catIdx]];
 
   // 从选定池中按日期取一句（同一天始终同一句）
   const body = pickFromPool(pool, dateStr);
 
-  // 天气温馨提示（自然融入）
+  // 每日一句名言
+  const dailyQuote = pickDailyQuote(dateStr);
+
+  // 天气温馨提示（更自然的融入）
   let weatherNote = '';
   if (weather) {
-    if (weather.high > 35) weatherNote = '今天天气炎热，出门记得多喝水、做好防晒。';
-    else if (weather.high > 30) weatherNote = '今天有点热，注意防暑降温哦。';
-    else if (weather.low < 5) weatherNote = '今天天气寒冷，出门记得添衣保暖。';
-    else if (weather.low < 15) weatherNote = '早晚温差较大，记得带一件外套。';
-    else if (weather.weather && weather.weather.includes('雨')) weatherNote = '今天有雨，出门记得带伞。';
+    const wDesc = weather.weather || '';
+    const hi = weather.high, lo = weather.low;
+    if (hi > 38) weatherNote = '今天高温炎热，出门务必做好防晒、多喝水，尽量避免正午外出。';
+    else if (hi > 33) weatherNote = '今天天气偏热，注意防暑降温，少喝冰饮保护肠胃哦。';
+    else if (hi > 28) weatherNote = '今天温暖舒适，很适合出去走走，享受阳光和微风。';
+    else if (lo < 0) weatherNote = '今天气温很低，出门记得穿上最厚的外套，别感冒了。';
+    else if (lo < 8) weatherNote = '今天有点冷，早晚出门记得添衣保暖，围巾手套都带上吧。';
+    else if (lo < 16) weatherNote = '早晚温差较大，记得带一件薄外套，别着凉了。';
+    else if (wDesc.includes('雨')) weatherNote = '今天有雨，出门记得带伞。雨天也别忘了保持好心情哦，彩虹总在风雨后。';
+    else if (wDesc.includes('雪')) weatherNote = '今天有雪，出门注意防滑保暖。雪花飘落的日子，也是生活赠予的浪漫。';
+    else if (wDesc.includes('阴') || wDesc.includes('云')) weatherNote = '今天阴天，但别让天气影响了心情。心里的太阳，自己点亮就好。';
+    else if (wDesc.includes('雷')) weatherNote = '今天有雷暴预警，尽量待在室内，安全第一。';
+    else if (wDesc.includes('雾')) weatherNote = '今天有雾，出行注意能见度，开车慢一点。迷雾终会散去，阳光就在前方。';
+    else if (wDesc.includes('晴')) weatherNote = `今天${season}的天气格外晴朗，阳光正好，微风不燥。`;
+  }
+  // 如果没有匹配到具体天气描述但有温度数据
+  if (!weatherNote && weather && weather.high) {
+    weatherNote = `今天${season}的天气刚刚好，最高气温${weather.high}°C。`;
   }
 
   // 拼接抖音风早安电台文案
   let script = '';
   script += `早安电台  ·  ${dateCN}  ${weekday}\n\n`;
-
-  script += `今天是${month}月${day}日，${weekday}，早安。\n\n`;
+  script += `今天是${month}月${day}日，${weekday}，${term.name}刚过，${season}的气息越来越浓。早安。\n\n`;
   script += body;
 
   if (weatherNote) {
     script += `\n\n${weatherNote}`;
   }
 
+  script += `\n\n「${dailyQuote.q}」—— ${dailyQuote.a}`;
   script += `\n\n加油！`;
 
   return script;
@@ -443,7 +566,7 @@ btnGen.addEventListener('click', async () => {
 
   const weatherData = await fetchWeather(39.9, 116.4).catch(() => null);
 
-  currentScript = buildScript(dateStr, weatherData, null);
+  currentScript = buildScript(dateStr, weatherData);
 
   output.innerHTML = `<div class="script-card"><div class="time-badge"> ${formatDateCN(dateStr)}</div>${escapeHTML(currentScript).replace(/\n/g, '<br>')}</div>`;
   btnSpeak.disabled = false;
@@ -541,20 +664,22 @@ btnGenVideo.addEventListener('click', async () => {
       const sr = await fetch('/status');
       const st = await sr.json();
       const pct = parseProgress(st.progress);
-      const stageText = parseStage(st.progress);
-      if (pct >= 0) {
+      const stage = parseStage(st.progress);
+      const displayPct = pct >= 0 ? pct : stage.pct;
+      if (stage.pct >= 0) {
         videoStatus.innerHTML =
           '<div class="status">' +
-            '<div class="progress-pct">' + pct + '%</div>' +
-            '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>' +
-            '<p style="margin-top:10px;color:var(--accent);font-size:0.9em;"> 正在渲染视频...</p>' +
-            '<p style="margin-top:4px;color:var(--sub);font-size:0.75em;font-family:monospace;">' + escapeHTML(st.progress.substring(0, 80)) + '</p>' +
+            '<div style="font-size:2em;margin-bottom:4px;">' + stage.icon + '</div>' +
+            '<div class="progress-pct">' + (displayPct >= 0 ? displayPct + '%' : '...') + '</div>' +
+            '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + Math.max(2, displayPct) + '%"></div></div>' +
+            '<p style="margin-top:10px;color:var(--accent);font-size:0.95em;">' + escapeHTML(stage.name) + '</p>' +
+            '<p style="margin-top:4px;color:var(--sub);font-size:0.72em;font-family:monospace;">' + escapeHTML((st.progress || '').substring(0, 80)) + '</p>' +
           '</div>';
       } else {
         videoStatus.innerHTML =
           '<div class="status">' +
             '<div class="spinner"></div>' +
-            '<p style="margin-top:10px;font-size:1em;">' + escapeHTML(stageText) + '</p>' +
+            '<p style="margin-top:10px;font-size:1em;">' + escapeHTML(stage.name) + '</p>' +
             '<p style="margin-top:4px;color:var(--sub);font-size:0.75em;font-family:monospace;">' + escapeHTML(st.progress || '') + '</p>' +
           '</div>';
       }
@@ -576,7 +701,7 @@ btnGenVideo.addEventListener('click', async () => {
     }
   } catch(e) {
     if (!cancelled) {
-      videoStatus.innerHTML = '<div class="error-msg">' + escapeHTML(e.message) + '</div>';
+      videoStatus.innerHTML = '<div class="error-msg"><p>' + escapeHTML(e.message) + '</p><button class="btn btn-outline" style="margin-top:10px;" onclick="btnGenVideo.click()"> 重试</button></div>';
     }
   }
   // Reset button state
@@ -605,14 +730,16 @@ async function loadHistory() {
     }
     historyList.innerHTML = items.map((h, i) => `
       <div class="history-item" data-name="${escapeHTML(h.name)}">
-        <div class="h-thumb">▶</div>
+        <div class="h-thumb" style="background-image:url('/thumbnail?name=${encodeURIComponent(h.name)}'); background-size:cover; background-position:center;">
+          <div class="h-thumb-play">▶</div>
+        </div>
         <div class="h-info">
           <div class="h-time">${escapeHTML(h.time)}  ·  耗时 ${h.duration}s</div>
           <div class="h-text">${escapeHTML(h.text)}</div>
         </div>
         <div class="h-actions">
           <button class="h-play" data-name="${escapeHTML(h.name)}">▶ 播放</button>
-          <button class="h-dl" data-name="${escapeHTML(h.name)}"> 下载</button>
+          <button class="h-dl" data-name="${escapeHTML(h.name)}">↓ 下载</button>
         </div>
       </div>
     `).join('');
@@ -664,21 +791,35 @@ function parseProgress(raw) {
 }
 
 function parseStage(raw) {
-  if (!raw) return '准备中...';
-  if (raw.includes('TTS') || raw.includes('语音')) return '正在合成语音...';
-  if (raw.includes('素材') || raw.includes('Pexels')) return '正在获取视频素材...';
-  if (raw.includes('滤镜') || raw.includes('合成')) return '正在合成视频画面...';
-  if (raw.includes('导出')) return '正在导出视频文件...';
-  if (raw.startsWith('t:') || raw.includes('%')) return '正在渲染视频...';
-  if (raw.includes('开始')) return '开始生成...';
-  if (raw.includes('完成')) return '完成！';
-  return raw.substring(0, 40);
+  if (!raw) return {name:'准备中...', icon:'🔄', pct:0};
+  if (raw.includes('TTS') || raw.includes('语音')) return {name:'合成语音中...', icon:'🎙️', pct:5};
+  if (raw.includes('素材') || raw.includes('照片') || raw.includes('Pexels')) return {name:'准备视频素材...', icon:'🎬', pct:15};
+  if (raw.includes('滤镜') || raw.includes('合成')) return {name:'合成画面与滤镜...', icon:'🎨', pct:50};
+  if (raw.includes('导出')) return {name:'导出视频文件...', icon:'📦', pct:85};
+  if (raw.startsWith('t:') || raw.includes('%')) {
+    const m = raw.match(/(\d+)%/);
+    return {name:'渲染视频帧...', icon:'⏳', pct: m ? parseInt(m[1]) : 50};
+  }
+  if (raw.includes('完成')) return {name:'完成！', icon:'✅', pct:100};
+  if (raw.includes('取消')) return {name:'已取消', icon:'⏹', pct:0};
+  if (raw.includes('开始')) return {name:'开始生成...', icon:'🚀', pct:2};
+  return {name:raw.substring(0, 40), icon:'🔄', pct:-1};
 }
 
 function escapeHTML(str) {
   const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
   return str.replace(/[&<>"']/g, c => map[c]);
 }
+
+// ── 键盘快捷键 ──────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (btnGenVideo.dataset.generating === 'true') cancelGen();
+    else if (currentScript && !btnGenVideo.disabled) btnGenVideo.click();
+    else btnGen.click();
+  }
+});
 
 // 页面加载时自动生成 & 加载历史
 btnGen.click();

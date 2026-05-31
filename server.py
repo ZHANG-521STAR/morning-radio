@@ -180,6 +180,10 @@ class Handler(SimpleHTTPRequestHandler):
 
         elif path == "/video":
             self._serve_video(params)
+
+        elif path == "/thumbnail":
+            self._serve_thumbnail(params)
+
         else:
             super().do_GET()
 
@@ -248,6 +252,46 @@ class Handler(SimpleHTTPRequestHandler):
                     if not data:
                         break
                     self.wfile.write(data)
+
+    def _serve_thumbnail(self, params):
+        """Extract frame at 2s as JPEG thumbnail."""
+        name = params.get("name", [None])[0]
+        if not name:
+            self._json(400, {"error": "name required"})
+            return
+        video_path = OUTPUT / f"{name}.mp4"
+        if not video_path.exists():
+            video_path = OUTPUT / name
+        if not video_path.exists():
+            self._json(404, {"error": "video not found"})
+            return
+
+        # Cache thumbnails
+        thumb_dir = OUTPUT / "thumbnails"
+        thumb_dir.mkdir(exist_ok=True)
+        thumb_path = thumb_dir / f"{video_path.stem}.jpg"
+
+        if not thumb_path.exists():
+            try:
+                ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
+                subprocess.run(
+                    [ffmpeg, "-y", "-ss", "3", "-i", str(video_path),
+                     "-vframes", "1", "-q:v", "5", str(thumb_path)],
+                    capture_output=True, timeout=15,
+                )
+            except Exception:
+                pass
+
+        if thumb_path.exists():
+            data = thumb_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", len(data))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(data)
+        else:
+            self._json(404, {"error": "thumbnail unavailable"})
 
     def _json(self, code, data):
         self.send_response(code)
