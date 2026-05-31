@@ -35,7 +35,7 @@ LOCAL_STOCK = ROOT / "素材库"
 LOCAL_STOCK.mkdir(exist_ok=True)
 PHOTO_STOCK = LOCAL_STOCK / "photos"
 PHOTO_STOCK.mkdir(exist_ok=True)
-PEXELS_KEY = "kZ2gX5mFq3oNtR7yVbL8cJ1wH6aP4sD0"
+PEXELS_KEY = os.environ.get("PEXELS_KEY", "")
 W, H = 1920, 1080
 
 
